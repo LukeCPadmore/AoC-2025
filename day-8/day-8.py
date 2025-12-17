@@ -1,5 +1,7 @@
 from pathlib import Path
-from itertools import product
+import itertools
+from collections import Counter
+import math
 class Vector():
     def __init__(self,x:int,y:int,z:int) -> None:
         self.x, self.y, self.z = int(x),int(y),int(z)
@@ -25,15 +27,45 @@ def parse_input(filepath:Path) -> None:
             vectors.append(Vector(*line.strip().split(",")))
     return vectors
     
-def part1(vectors,N):
-    prod = [(a,b) for a,b in product(vectors,repeat = 2) if abs(a) < abs(b)]
-    circuits = {v:i for i,v in enumerate(vectors)}
-    distances = [(abs(a-b),a,b) for a,b in prod]
-    distances = sorted(distances,key = lambda x:x[0])
-    for d,a,b in distances[:N]:
-        continue
+def find(parent, i):
+    if parent[i] != i:
+        parent[i] = find(parent, parent[i])
+    return parent[i]
 
-if __name__ == "__main__": 
-    vectors = parse_input('test.txt')
+def union(parent,x,y) -> bool:
+    rx = find(parent, x)
+    ry = find(parent, y)
+    # Not connected so connect
+    if rx != ry:
+        parent[ry] = rx
+        return True
+    return False
 
     
+def part1(vectors,N,k):
+    pairs = list(itertools.combinations(vectors, 2))
+    circuits = {v:v for v in vectors}
+    distances = [(abs(a-b),a,b) for a,b in pairs]
+    distances = sorted(distances,key = lambda x:x[0])
+    for _,a,b in distances[:N+1]:
+        union(circuits, a, b)
+    roots = [find(circuits, v) for v in vectors]
+    counts = Counter(roots)
+    vals = sorted(counts.values(), reverse=True)
+    return math.prod(vals[:k])
+
+def part2(vectors):
+    pairs = list(itertools.combinations(vectors, 2))
+    circuits = {v:v for v in vectors}
+    num_circuits = len(vectors)
+    distances = [(abs(a-b),a,b) for a,b in pairs]
+    distances = sorted(distances,key = lambda x:x[0])
+    for _,a,b in distances:
+        num_circuits -= union(circuits, a, b)
+        if num_circuits == 1:
+            return a.x * b.x
+        
+if __name__ == "__main__": 
+    vectors = parse_input('input.txt')
+    print(part1(vectors,1000,3))
+    print(part2(vectors))
