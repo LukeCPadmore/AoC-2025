@@ -3,7 +3,7 @@ import re
 import numpy as np
 import itertools
 from collections import deque
-
+from ortools.sat.python import cp_model
 def parse_lights(line:str): 
     m = re.search(r"\[[.#]+\]",line)
     start, end = m.span()
@@ -60,16 +60,45 @@ def min_presses_joltage(A, target):
                 seen.add(tuple(nxt))
                 q.append((nxt, d+1))
 
+def solve_ilp_l1(A, b):
+    A = np.asarray(A, dtype=int)
+    b = np.asarray(b, dtype=int).reshape(-1)
 
-def part2(filename) -> None:
-    num_buttons = 0
+    k, m = A.shape
+    assert b.shape[0] == k, (A.shape, b.shape)
+
+    model = cp_model.CpModel()
+
+    x = []
+    for j in range(m):
+        rows = np.where(A[:, j] != 0)[0]
+        ub = int(b[rows].min()) if len(rows) else 0
+        x.append(model.NewIntVar(0, ub, f"x{j}"))
+
+    for i in range(k):
+        model.Add(sum(int(A[i, j]) * x[j] for j in range(m)) == int(b[i]))
+
+    model.Minimize(sum(x))
+
+    solver = cp_model.CpSolver()
+    solver.parameters.num_search_workers = 8
+    status = solver.Solve(model)
+
+    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return int(solver.ObjectiveValue()), [solver.Value(v) for v in x]
+    return None, None
+
+def part2(filename:Path) -> None:
+    total = 0
     with open(filename) as f:
         for line in f:
             j = parse_joltage(line)
             A = parse_buttons(line,len(j))
-            num_buttons += min_presses_joltage(A,j)
-    return num_buttons
+            presses,_ = solve_ilp_l1(A.T,j)
+            total += presses
+    return total
 
 if __name__ == "__main__":
     # print(part1("input.txt"))
     print(part2("input.txt"))
+
